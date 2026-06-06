@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+
+# User-specific / local overrides (contains real credentials)
+appsettings.Development.json
+
+# .NET / Rider / VS
+*.user
+*.suo
+.vs/
+.idea/
+*.swp
+*.DS_Store
+
+# NuGet
+*.nupkg
+packages/
