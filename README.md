@@ -68,8 +68,8 @@ Copy `appsettings.json` and create `appsettings.Development.json` for your local
     }
   },
   "Database": {
-    "CoreDb": "Host=...;Database=dataimportexport_core;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true",
-    "StagingDb": "Host=...;Database=dataimportexport_staging;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true"
+    "CoreDb": "Host=<your-db-host>;Port=5432;Database=dataimportexport_core;Username=<your-db-username>;Password=<your-db-password>;SSL Mode=Require;Trust Server Certificate=true",
+    "StagingDb": "Host=<your-db-host>;Port=5432;Database=dataimportexport_staging;Username=<your-db-username>;Password=<your-db-password>;SSL Mode=Require;Trust Server Certificate=true"
   },
   "Defaults": {
     "ITwinId": "<your-itwin-id>",
