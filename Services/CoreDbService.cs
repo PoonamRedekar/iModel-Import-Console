@@ -59,6 +59,24 @@ public class CoreDbService
     }
 
     /// <summary>
+    /// Get all data segments for the given iTwin that have an iModel class name in their metadata.
+    /// </summary>
+    public async Task<List<DataSegmentInfo>> GetAllDataSegmentsAsync(Guid iTwinId)
+    {
+        await using var conn = new NpgsqlConnection(_coreConnectionString);
+        var sql = @"
+            SELECT ds.id AS Id, ds.name AS Name, ds.display_label AS DisplayLabel,
+                   ds.feature_type_id AS FeatureTypeId, ds.metadata AS Metadata,
+                   ds.data_source_type_id AS DataSourceTypeId
+            FROM data_segments ds
+            WHERE ds.itwin_id = @iTwinId
+              AND ds.metadata IS NOT NULL
+              AND ds.metadata::jsonb->>'className' IS NOT NULL
+            ORDER BY ds.name";
+        return (await conn.QueryAsync<DataSegmentInfo>(sql, new { iTwinId })).ToList();
+    }
+
+    /// <summary>
     /// Get all data segment properties for a segment.
     /// </summary>
     public async Task<List<DataSegmentPropertyInfo>> GetSegmentPropertiesAsync(Guid iTwinId, Guid dataSegmentId)

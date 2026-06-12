@@ -188,6 +188,78 @@ public class IModelApiClient : IDisposable
     public void Dispose() => _httpClient.Dispose();
 
     /// <summary>
+    /// Converts a batch of iModel XYZ points to WGS84 in one API call.
+    /// Returns a parallel list; null entry means that point failed.
+    /// POST /imodel-query/itwins/{iTwin}/imodels/{imodel}/changesets/{cs}/coordinates/geographic
+    /// </summary>
+    public async Task<List<(double Longitude, double Latitude)?>> ConvertBatchToWgs84Async(
+        IReadOnlyList<(double X, double Y, double Z)> points,
+        CancellationToken ct = default)
+    {
+        var nullResult = Enumerable.Repeat<(double, double)?>(null, points.Count).ToList();
+        if (_gcsNotDefined || points.Count == 0) return nullResult;
+
+        var url = $"{_apiBaseUrl}/imodel-query/itwins/{_iTwinId}/imodels/{_iModelId}/changesets/{_changesetId}/coordinates/geographic";
+        var body = JsonSerializer.Serialize(new
+        {
+            target = "WGS84",
+            iModelCoordinates = points.Select(p => new { x = p.X, y = p.Y, z = p.Z }).ToArray()
+        });
+
+        try
+        {
+            if (_tokenManager != null)
+            {
+                var token = await _tokenManager.GetValidTokenAsync(ct);
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+            var httpResponse = await _httpClient.PostAsync(url,
+                new StringContent(body, Encoding.UTF8, "application/json"), ct);
+
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                var errBody = await httpResponse.Content.ReadAsStringAsync(ct);
+                if (errBody.Contains("NoGCSDefined"))
+                {
+                    _gcsNotDefined = true;
+                    Console.WriteLine("[WARN] iModel has no GCS — geometry cannot be georeferenced.");
+                }
+                else
+                    Console.WriteLine($"[WARN] Batch coordinate conversion failed ({httpResponse.StatusCode}): {errBody}");
+                return nullResult;
+            }
+
+            var response = await httpResponse.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(response);
+
+            if (!doc.RootElement.TryGetProperty("geoCoordinates", out var geoCoords))
+                return nullResult;
+
+            var result = new List<(double, double)?>();
+            foreach (var item in geoCoords.EnumerateArray())
+            {
+                if (item.TryGetProperty("error", out _) ||
+                    !item.TryGetProperty("point", out var pt))
+                {
+                    result.Add(null);
+                    continue;
+                }
+                var lon = pt.TryGetProperty("longitude", out var l) ? l.GetDouble() : double.NaN;
+                var lat = pt.TryGetProperty("latitude", out var a) ? a.GetDouble() : double.NaN;
+                result.Add(double.IsNaN(lon) || double.IsNaN(lat) ? null : (lon, lat));
+            }
+            // Pad to input length if server returned fewer entries
+            while (result.Count < points.Count) result.Add(null);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[WARN] Batch coordinate conversion failed: {ex.Message}");
+            return nullResult;
+        }
+    }
+
+    /// <summary>
     /// Converts iModel coordinates (X,Y,Z) to WGS84 (longitude, latitude, altitude)
     /// using: POST /imodel-query/itwins/{iTwin}/imodels/{imodel}/changesets/{changeset}/coordinates/geographic
     /// Request: { "coordinates": [{ "x": ..., "y": ..., "z": ... }] }
